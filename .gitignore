@@ -13,3 +13,6 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+
+#Anthropic API Key
+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
