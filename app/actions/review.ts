@@ -21,6 +21,11 @@ import {
   snStageCi,
   type IreCriteriaEntry,
 } from "@/lib/servicenow"
+import {
+  executeMergeRemediation,
+  parseMergeRemediationPayload,
+  rollbackMergeRemediation,
+} from "@/lib/remediation/executor"
 
 export async function reviewDupCluster(
   clusterId: number,
@@ -202,6 +207,13 @@ export async function applyRemediation(remediationId: number) {
     .where(and(eq(remediation.id, remediationId), eq(remediation.teamTag, TEAM_TAG)))
 
   if (!item) throw new Error("Remediation not found")
+  if (item.status !== "queued") throw new Error("Remediation is not queued")
+
+  // Local execution first — merges actually remove loser rows now. If the
+  // executor throws, nothing is marked applied.
+  if (item.actionType === "merge_duplicates") {
+    await executeMergeRemediation(item.payload, item.teamTag)
+  }
 
   // Promotion: approved CI → scoped staging table → identifyreconcile.
   // Local apply proceeds either way; the ServiceNow outcome lands on the row.
@@ -297,16 +309,36 @@ function toIreValues(ci: StagingCi): Record<string, string> {
 }
 
 export async function rollbackRemediation(remediationId: number) {
+  const [item] = await db
+    .select()
+    .from(remediation)
+    .where(and(eq(remediation.id, remediationId), eq(remediation.teamTag, TEAM_TAG)))
+
+  if (!item) throw new Error("Remediation not found")
+  if (item.status !== "applied") throw new Error("Only applied remediations can be rolled back")
+
+  // Restore the loser snapshots before flipping status; a failed restore
+  // leaves the row applied so the state never lies.
+  let note: string | null = null
+  if (item.actionType === "merge_duplicates") {
+    const payload = parseMergeRemediationPayload(item.payload)
+    const result = await rollbackMergeRemediation(item.rollback, item.teamTag, payload.survivorId)
+    note = result.alreadyRestored
+      ? "Rows already restored — no changes"
+      : `Restored ${result.restoredCount} merged row(s)`
+  }
+
   await db
     .update(remediation)
     .set({ status: "rolled_back" })
-    .where(and(eq(remediation.id, remediationId), eq(remediation.teamTag, TEAM_TAG)))
+    .where(eq(remediation.id, remediationId))
 
   await db.insert(decision).values({
     teamTag: TEAM_TAG,
     entityType: "remediation",
     entityId: remediationId,
     decision: "rolled_back",
+    note,
   })
 
   revalidatePath("/remediation")
