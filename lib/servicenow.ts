@@ -280,10 +280,14 @@ export type IdentifyReconcileItem = {
 export async function snIdentifyReconcile(
   items: IdentifyReconcileItem[]
 ): Promise<unknown> {
-  const cfg = getConfig()
-  const params = new URLSearchParams({ sysparm_data_source: cfg.teamTag })
+  getConfig()
+  // sysparm_data_source must be a registered choice on cmdb_ci.discovery_source —
+  // arbitrary values are rejected with INVALID_INPUT_DATA. Omit unless configured.
+  const dataSource = process.env.SERVICENOW_DATA_SOURCE
+  const params = new URLSearchParams()
+  if (dataSource) params.set("sysparm_data_source", dataSource)
   const data = await snFetch<{ result: unknown }>(
-    `/api/now/identifyreconcile?${params}`,
+    `/api/now/identifyreconcile${params.size > 0 ? `?${params}` : ""}`,
     {
       method: "POST",
       body: {

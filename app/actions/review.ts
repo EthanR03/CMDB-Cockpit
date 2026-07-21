@@ -220,7 +220,12 @@ export async function applyRemediation(remediationId: number) {
       const reconcile = await snIdentifyReconcile([
         { className: ci.ciClass, values: toIreValues(ci) },
       ])
-      snPromotionStatus = "promoted"
+      // identifyreconcile reports failures in-band with HTTP 200
+      const reconcileFailed =
+        typeof reconcile === "object" &&
+        reconcile !== null &&
+        (reconcile as { hasError?: boolean }).hasError === true
+      snPromotionStatus = reconcileFailed ? "failed" : "promoted"
       snResult = {
         stagingTable: staged.table,
         stagedSysId: staged.sysId,
