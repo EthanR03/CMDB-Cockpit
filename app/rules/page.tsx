@@ -15,6 +15,7 @@ export default async function RulesPage() {
       <RulesReview
         rules={rules}
         snInstanceUrl={process.env.SERVICENOW_INSTANCE_URL?.replace(/\/+$/, "") ?? null}
+        snTeamTag={process.env.SERVICENOW_TEAM_IDENTIFIER ?? null}
       />
     </AppShell>
   )
