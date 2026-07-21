@@ -67,6 +67,11 @@ export const ireRuleProposal = pgTable("ire_rule_proposal", {
   coverage: jsonb("coverage"),
   rationale: text("rationale"),
   status: text("status").notNull().default("pending"),
+  // ServiceNow sync outcome — null until an approval attempts creation
+  snSyncStatus: text("sn_sync_status"),
+  snSyncError: text("sn_sync_error"),
+  snIdentifierSysId: text("sn_identifier_sys_id"),
+  snEntrySysIds: jsonb("sn_entry_sys_ids").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -91,6 +96,9 @@ export const remediation = pgTable("remediation", {
   payload: jsonb("payload"),
   status: text("status").notNull().default("queued"),
   rollback: jsonb("rollback"),
+  // ServiceNow promotion outcome — null when applied with the bridge disabled
+  snPromotionStatus: text("sn_promotion_status"),
+  snResult: jsonb("sn_result"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   appliedAt: timestamp("applied_at", { withTimezone: true }),
 })

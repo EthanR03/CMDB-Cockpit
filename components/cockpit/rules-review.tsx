@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { Check, X } from "lucide-react"
+import { AlertTriangle, Check, ExternalLink, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -25,7 +25,64 @@ type Coverage = {
   pct: number
 }[]
 
-export function RulesReview({ rules }: { rules: IreRuleProposal[] }) {
+function SnSyncStrip({
+  rule,
+  snInstanceUrl,
+}: {
+  rule: IreRuleProposal
+  snInstanceUrl: string | null
+}) {
+  if (rule.snSyncStatus === "created") {
+    const sysId = rule.snIdentifierSysId
+    const href =
+      snInstanceUrl && sysId ? `${snInstanceUrl}/cmdb_identifier.do?sys_id=${sysId}` : null
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-success/10 px-4 py-2">
+        <Check className="size-3.5 text-success" aria-hidden="true" />
+        <span className="text-xs text-success">Created in ServiceNow ✓</span>
+        {sysId ? (
+          href ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] text-success underline-offset-2 hover:underline"
+            >
+              {sysId.slice(0, 12)}…
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
+          ) : (
+            <code className="ml-auto font-mono text-[11px] text-success">{sysId}</code>
+          )
+        ) : null}
+        {rule.snEntrySysIds?.length ? (
+          <span className="font-mono text-[10px] text-muted-foreground">
+            +{rule.snEntrySysIds.length} entr{rule.snEntrySysIds.length === 1 ? "y" : "ies"}
+          </span>
+        ) : null}
+      </div>
+    )
+  }
+  if (rule.snSyncStatus === "failed") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-b border-border bg-destructive/10 px-4 py-2">
+        <AlertTriangle className="size-3.5 shrink-0 text-destructive" aria-hidden="true" />
+        <span className="text-xs text-destructive">
+          ServiceNow creation failed{rule.snSyncError ? ` — ${rule.snSyncError}` : ""}
+        </span>
+      </div>
+    )
+  }
+  return null
+}
+
+export function RulesReview({
+  rules,
+  snInstanceUrl = null,
+}: {
+  rules: IreRuleProposal[]
+  snInstanceUrl?: string | null
+}) {
   const [statusFilter, setStatusFilter] = useState("all")
   const [isPending, startTransition] = useTransition()
 
@@ -84,6 +141,8 @@ export function RulesReview({ rules }: { rules: IreRuleProposal[] }) {
                     <StatusBadge status={rule.status} />
                   </span>
                 </header>
+
+                <SnSyncStrip rule={rule} snInstanceUrl={snInstanceUrl} />
 
                 <div className="flex flex-col gap-3 p-4">
                   <div>
