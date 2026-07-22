@@ -57,6 +57,7 @@ type SnConfig = {
   teamTag: string
   stagingTable: string
   teamField: string
+  dataSource: string | null
 }
 
 function getConfig(): SnConfig {
@@ -77,6 +78,7 @@ function getConfig(): SnConfig {
     teamTag,
     stagingTable: process.env.SERVICENOW_STAGING_TABLE ?? "x_cockpit_staging_ci",
     teamField: process.env.SERVICENOW_TEAM_FIELD ?? "u_team_tag",
+    dataSource: process.env.SERVICENOW_DATA_SOURCE ?? null,
   }
 }
 
@@ -97,8 +99,13 @@ function assertWritableTable(table: string) {
 /** Encoded-query clause restricting reads on `table` to team-owned rows. */
 function teamScopeClause(cfg: SnConfig, table: string): string {
   if (table.startsWith("x_")) return `${cfg.teamField}=${cfg.teamTag}`
+  // Identification rules ARE name-prefixed with the team tag when we create them.
+  if (table === "cmdb_identifier") return `nameSTARTSWITH${cfg.teamTag}`
   if (table === "cmdb_identifier_entry") return `identifier.nameSTARTSWITH${cfg.teamTag}`
-  // Team convention: everything we put on the shared instance is name-prefixed.
+  // Shared CMDB CI classes (cmdb_ci_*): promoted CIs keep their real names and
+  // are marked by discovery_source, not a name prefix (team decision). Scope
+  // read-backs by the data source so they don't come back empty.
+  if (cfg.dataSource) return `discovery_source=${cfg.dataSource}`
   return `nameSTARTSWITH${cfg.teamTag}`
 }
 
@@ -280,12 +287,11 @@ export type IdentifyReconcileItem = {
 export async function snIdentifyReconcile(
   items: IdentifyReconcileItem[]
 ): Promise<unknown> {
-  getConfig()
+  const cfg = getConfig()
   // sysparm_data_source must be a registered choice on cmdb_ci.discovery_source —
   // arbitrary values are rejected with INVALID_INPUT_DATA. Omit unless configured.
-  const dataSource = process.env.SERVICENOW_DATA_SOURCE
   const params = new URLSearchParams()
-  if (dataSource) params.set("sysparm_data_source", dataSource)
+  if (cfg.dataSource) params.set("sysparm_data_source", cfg.dataSource)
   const data = await snFetch<{ result: unknown }>(
     `/api/now/identifyreconcile${params.size > 0 ? `?${params}` : ""}`,
     {
