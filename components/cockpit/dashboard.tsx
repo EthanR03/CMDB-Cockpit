@@ -166,6 +166,91 @@ export function Dashboard({ data }: { data: DashboardData }) {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="rounded-sm border-border bg-card lg:col-span-3">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex flex-wrap items-center gap-2 font-mono text-xs uppercase tracking-wide text-muted-foreground">
+              Per-run CI completeness
+              {data.runCompleteness ? (
+                <>
+                  <span className="normal-case tracking-normal text-foreground">
+                    run #{data.runCompleteness.agentRunId} · {data.runCompleteness.agent}
+                  </span>
+                  <StatusBadge status={data.runCompleteness.status} />
+                </>
+              ) : null}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!data.runCompleteness ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                {kpis.totalCis === 0
+                  ? "No team-scoped CIs are available to measure."
+                  : "No run completeness baseline has been captured yet."}
+              </p>
+            ) : data.runCompleteness.classes.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                This run had no team-scoped CIs to measure.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {data.runCompleteness.classes.map((entry) => {
+                  const label = CI_CLASS_LABELS[entry.ciClass] ?? entry.ciClass
+                  const afterMissing = entry.afterPercent === null
+                  const change = entry.changePercentagePoints
+                  const missingMessage =
+                    data.runCompleteness?.status === "running"
+                      ? "Baseline captured · run still in progress"
+                      : data.runCompleteness?.status === "failed"
+                        ? "After snapshot unavailable for failed run"
+                        : "After snapshot unavailable"
+
+                  return (
+                    <div
+                      key={entry.ciClass}
+                      className="rounded-sm border border-border bg-secondary px-3 py-2.5"
+                    >
+                      <p className="text-xs font-medium text-foreground">
+                        {label} completeness
+                      </p>
+                      {entry.totalCount === 0 ? (
+                        <p className="mt-1 text-xs text-muted-foreground">No CIs for this class</p>
+                      ) : afterMissing ? (
+                        <>
+                          <p className="mt-1 font-mono text-sm tabular-nums text-foreground">
+                            {entry.beforePercent ?? 0}% before
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {missingMessage}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="mt-1 font-mono text-sm tabular-nums text-foreground">
+                            {entry.beforePercent}% before → {entry.afterPercent}% after
+                          </p>
+                          <p
+                            className={`mt-1 text-[11px] ${
+                              (change ?? 0) > 0
+                                ? "text-success"
+                                : (change ?? 0) < 0
+                                  ? "text-destructive"
+                                  : "text-muted-foreground"
+                            }`}
+                          >
+                            {(change ?? 0) > 0 ? "+" : ""}
+                            {change ?? 0} percentage points · {entry.afterCompleteCount}/
+                            {entry.totalCount} complete
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card className="rounded-sm border-border bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
