@@ -1,24 +1,14 @@
 import "server-only"
 
-import { google } from "@ai-sdk/google"
+import { openai } from "@ai-sdk/openai"
 import type { StagingCi } from "@/lib/db/schema"
 
-/** Google Gemini via GOOGLE_GENERATIVE_AI_API_KEY (free tier). */
-export const AGENT_MODEL = google("gemini-3.5-flash")
+/** OpenAI via OPENAI_API_KEY. Right-sized for structured extraction, not
+ * open-ended reasoning; swapping model/provider is a one-line change here. */
+export const AGENT_MODEL = openai("gpt-4o-mini")
 
-/**
- * No provider-specific options needed for Gemini Flash. The previous
- * Anthropic options (thinking disabled, low effort) don't apply here;
- * the AI SDK ignores provider options that don't match the active
- * provider, so an empty object is safe.
- */
-export const AGENT_PROVIDER_OPTIONS = {
-  google: {
-    thinkingConfig: {
-      thinkingLevel: "minimal" as const,
-    },
-  },
-}
+/** No provider-specific options needed for these structured-output calls. */
+export const AGENT_PROVIDER_OPTIONS = {}
 
 /** Compact, token-efficient projection of a staging CI for prompts. */
 export function compactCi(ci: StagingCi) {
