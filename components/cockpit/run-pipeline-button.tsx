@@ -12,29 +12,34 @@ export function RunPipelineButton() {
   const router = useRouter()
 
   async function runPipeline() {
-    for (const agent of AGENTS) {
-      setRunning(agent.name)
-      try {
-        const res = await fetch("/api/agents/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agent: agent.id }),
-        })
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body.error ?? `${agent.name} failed (${res.status})`)
+    setRunning("Agent pipeline")
+    try {
+      const res = await fetch("/api/agents/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent: "all" }),
+      })
+      const data = await res.json().catch(() => ({}))
+
+      for (const agent of AGENTS) {
+        const result = data.results?.[agent.id]
+        const failure = data.failedAgents?.find(
+          (entry: { agent: string }) => entry.agent === agent.id
+        )
+        if (result) {
+          toast.success(`${agent.name} complete`, { description: result.summary })
+        } else if (failure) {
+          toast.error(`${agent.name} failed`, { description: failure.error })
         }
-        const data = await res.json()
-        toast.success(`${agent.name} complete`, {
-          description: data.results?.[agent.id]?.summary,
-        })
-        router.refresh()
-      } catch (e) {
-        toast.error(`${agent.name} failed`, {
-          description: e instanceof Error ? e.message : "Unknown error",
-        })
-        break
       }
+
+      if (!res.ok && data.status !== "partial_success") {
+        throw new Error(data.error ?? "Agent pipeline failed")
+      }
+    } catch (e) {
+      toast.error("Agent pipeline failed", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
     }
     setRunning(null)
     router.refresh()

@@ -1,5 +1,8 @@
 import "server-only"
 
+import { getLatestCompletenessComparison } from "@/lib/agent-run-completeness"
+import { COMPLETENESS_FIELDS, hasCompletenessValue } from "@/lib/completeness"
+import { TEAM_TAG } from "@/lib/constants"
 import {
   getAgentRuns,
   getDupClusters,
@@ -10,19 +13,8 @@ import {
   getTopologyProposals,
 } from "@/lib/queries"
 
-const COMPLETENESS_FIELDS = [
-  { key: "owner", label: "Owner" },
-  { key: "supportGroup", label: "Support group" },
-  { key: "serialNumber", label: "Serial" },
-  { key: "ipAddress", label: "IP address" },
-  { key: "environment", label: "Environment" },
-  { key: "lifecycleStatus", label: "Lifecycle" },
-  { key: "os", label: "OS" },
-  { key: "location", label: "Location" },
-] as const
-
 export async function getDashboardData() {
-  const [cis, findings, clusters, rules, topologies, remediations, runs] =
+  const [cis, findings, clusters, rules, topologies, remediations, runs, runCompleteness] =
     await Promise.all([
       getStagingCis(),
       getFindings(),
@@ -31,14 +23,14 @@ export async function getDashboardData() {
       getTopologyProposals(),
       getRemediations(),
       getAgentRuns(),
+      getLatestCompletenessComparison(TEAM_TAG),
     ])
 
   const total = cis.length
 
   const completeness = COMPLETENESS_FIELDS.map(({ key, label }) => {
     const filled = cis.filter((ci) => {
-      const v = ci[key]
-      return v !== null && v !== undefined && v !== ""
+      return hasCompletenessValue(ci[key])
     }).length
     return {
       field: label,
@@ -83,6 +75,7 @@ export async function getDashboardData() {
       .map(([ciClass, count]) => ({ ciClass, count }))
       .sort((a, b) => b.count - a.count),
     recentRuns: runs.slice(0, 6),
+    runCompleteness,
   }
 }
 

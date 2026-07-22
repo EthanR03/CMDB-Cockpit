@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm"
 import {
+  check,
   integer,
   jsonb,
   numeric,
@@ -6,6 +8,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 export const stagingCi = pgTable("staging_ci", {
@@ -125,6 +128,42 @@ export const agentRun = pgTable("agent_run", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 })
 
+export const agentRunCompletenessSnapshot = pgTable(
+  "agent_run_completeness_snapshot",
+  {
+    id: serial("id").primaryKey(),
+    agentRunId: integer("agent_run_id")
+      .notNull()
+      .references(() => agentRun.id, { onDelete: "cascade" }),
+    teamTag: text("team_tag").notNull().default("hackathon"),
+    ciClass: text("ci_class").notNull(),
+    phase: text("phase").notNull(),
+    totalCount: integer("total_count").notNull(),
+    completeCount: integer("complete_count").notNull(),
+    completenessPercent: integer("completeness_percent").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("agent_run_completeness_snapshot_run_class_phase_uidx").on(
+      table.agentRunId,
+      table.ciClass,
+      table.phase
+    ),
+    check(
+      "agent_run_completeness_snapshot_phase_check",
+      sql`${table.phase} in ('before', 'after')`
+    ),
+    check(
+      "agent_run_completeness_snapshot_counts_check",
+      sql`${table.totalCount} >= 0 and ${table.completeCount} >= 0 and ${table.completeCount} <= ${table.totalCount}`
+    ),
+    check(
+      "agent_run_completeness_snapshot_percent_check",
+      sql`${table.completenessPercent} between 0 and 100`
+    ),
+  ]
+)
+
 export type StagingCi = typeof stagingCi.$inferSelect
 export type Finding = typeof finding.$inferSelect
 export type DupCluster = typeof dupCluster.$inferSelect
@@ -133,3 +172,4 @@ export type TopologyProposal = typeof topologyProposal.$inferSelect
 export type Remediation = typeof remediation.$inferSelect
 export type Decision = typeof decision.$inferSelect
 export type AgentRun = typeof agentRun.$inferSelect
+export type AgentRunCompletenessSnapshot = typeof agentRunCompletenessSnapshot.$inferSelect
