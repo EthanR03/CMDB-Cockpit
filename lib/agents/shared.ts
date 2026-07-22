@@ -1,20 +1,22 @@
 import "server-only"
 
-import { anthropic } from "@ai-sdk/anthropic"
+import { google } from "@ai-sdk/google"
 import type { StagingCi } from "@/lib/db/schema"
 
-/** Direct Anthropic API via ANTHROPIC_API_KEY (no Gateway). */
-export const AGENT_MODEL = anthropic("claude-sonnet-5")
+/** Google Gemini via GOOGLE_GENERATIVE_AI_API_KEY (free tier). */
+export const AGENT_MODEL = google("gemini-3.5-flash")
 
 /**
- * claude-sonnet-5 enables extended thinking by default, which massively
- * slows down structured-output extraction calls. Disable it and use low
- * effort — these agents do classification/extraction, not deep reasoning.
+ * No provider-specific options needed for Gemini Flash. The previous
+ * Anthropic options (thinking disabled, low effort) don't apply here;
+ * the AI SDK ignores provider options that don't match the active
+ * provider, so an empty object is safe.
  */
 export const AGENT_PROVIDER_OPTIONS = {
-  anthropic: {
-    thinking: { type: "disabled" as const },
-    effort: "low" as const,
+  google: {
+    thinkingConfig: {
+      thinkingLevel: "minimal" as const,
+    },
   },
 }
 

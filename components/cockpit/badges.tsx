@@ -43,6 +43,7 @@ export function StatusBadge({ status }: { status: string }) {
     resolved: "bg-success/15 text-success border border-success/40",
     running: "bg-primary/15 text-chart-1 border border-primary/40",
     complete: "bg-success/15 text-success border border-success/40",
+    succeeded: "bg-success/15 text-success border border-success/40",
     failed: "bg-destructive/15 text-destructive border border-destructive/40",
   }
   return (

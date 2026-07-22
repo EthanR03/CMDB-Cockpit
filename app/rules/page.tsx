@@ -12,7 +12,11 @@ export default async function RulesPage() {
       title="IRE Rules"
       subtitle="Rulewright-authored identification rules with coverage evidence"
     >
-      <RulesReview rules={rules} />
+      <RulesReview
+        rules={rules}
+        snInstanceUrl={process.env.SERVICENOW_INSTANCE_URL?.replace(/\/+$/, "") ?? null}
+        snTeamTag={process.env.SERVICENOW_TEAM_IDENTIFIER ?? null}
+      />
     </AppShell>
   )
 }

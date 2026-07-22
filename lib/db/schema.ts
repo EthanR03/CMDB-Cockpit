@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm"
 import {
+  check,
   integer,
   jsonb,
   numeric,
@@ -6,6 +8,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 export const stagingCi = pgTable("staging_ci", {
@@ -67,6 +70,11 @@ export const ireRuleProposal = pgTable("ire_rule_proposal", {
   coverage: jsonb("coverage"),
   rationale: text("rationale"),
   status: text("status").notNull().default("pending"),
+  // ServiceNow sync outcome — null until an approval attempts creation
+  snSyncStatus: text("sn_sync_status"),
+  snSyncError: text("sn_sync_error"),
+  snIdentifierSysId: text("sn_identifier_sys_id"),
+  snEntrySysIds: jsonb("sn_entry_sys_ids").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -91,6 +99,9 @@ export const remediation = pgTable("remediation", {
   payload: jsonb("payload"),
   status: text("status").notNull().default("queued"),
   rollback: jsonb("rollback"),
+  // ServiceNow promotion outcome — null when applied with the bridge disabled
+  snPromotionStatus: text("sn_promotion_status"),
+  snResult: jsonb("sn_result"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   appliedAt: timestamp("applied_at", { withTimezone: true }),
 })
@@ -117,6 +128,42 @@ export const agentRun = pgTable("agent_run", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 })
 
+export const agentRunCompletenessSnapshot = pgTable(
+  "agent_run_completeness_snapshot",
+  {
+    id: serial("id").primaryKey(),
+    agentRunId: integer("agent_run_id")
+      .notNull()
+      .references(() => agentRun.id, { onDelete: "cascade" }),
+    teamTag: text("team_tag").notNull().default("hackathon"),
+    ciClass: text("ci_class").notNull(),
+    phase: text("phase").notNull(),
+    totalCount: integer("total_count").notNull(),
+    completeCount: integer("complete_count").notNull(),
+    completenessPercent: integer("completeness_percent").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("agent_run_completeness_snapshot_run_class_phase_uidx").on(
+      table.agentRunId,
+      table.ciClass,
+      table.phase
+    ),
+    check(
+      "agent_run_completeness_snapshot_phase_check",
+      sql`${table.phase} in ('before', 'after')`
+    ),
+    check(
+      "agent_run_completeness_snapshot_counts_check",
+      sql`${table.totalCount} >= 0 and ${table.completeCount} >= 0 and ${table.completeCount} <= ${table.totalCount}`
+    ),
+    check(
+      "agent_run_completeness_snapshot_percent_check",
+      sql`${table.completenessPercent} between 0 and 100`
+    ),
+  ]
+)
+
 export type StagingCi = typeof stagingCi.$inferSelect
 export type Finding = typeof finding.$inferSelect
 export type DupCluster = typeof dupCluster.$inferSelect
@@ -125,3 +172,4 @@ export type TopologyProposal = typeof topologyProposal.$inferSelect
 export type Remediation = typeof remediation.$inferSelect
 export type Decision = typeof decision.$inferSelect
 export type AgentRun = typeof agentRun.$inferSelect
+export type AgentRunCompletenessSnapshot = typeof agentRunCompletenessSnapshot.$inferSelect

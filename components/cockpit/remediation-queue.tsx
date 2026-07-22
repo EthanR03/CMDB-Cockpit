@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { ChevronDown, ChevronRight, Play, Undo2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/cockpit/badges"
 import { applyRemediation, rollbackRemediation } from "@/app/actions/review"
@@ -13,6 +14,24 @@ const ACTION_LABELS: Record<string, string> = {
   publish_ire_rule: "Publish IRE rule",
   create_service_map: "Create service map",
   update_field: "Update field",
+}
+
+function PromotionBadge({ status }: { status: string | null }) {
+  if (status === "promoted") {
+    return (
+      <Badge className="rounded-sm border border-success/40 bg-success/15 font-mono text-[10px] uppercase text-success">
+        SN promoted
+      </Badge>
+    )
+  }
+  if (status === "failed") {
+    return (
+      <Badge className="rounded-sm border border-destructive/40 bg-destructive/15 font-mono text-[10px] uppercase text-destructive">
+        SN promotion failed
+      </Badge>
+    )
+  }
+  return null
 }
 
 export function RemediationQueue({ items }: { items: Remediation[] }) {
@@ -57,6 +76,7 @@ export function RemediationQueue({ items }: { items: Remediation[] }) {
                 </span>
               ) : null}
               <span className="ml-auto flex items-center gap-2">
+                <PromotionBadge status={item.snPromotionStatus} />
                 <StatusBadge status={item.status} />
                 <span className="font-mono text-[10px] text-muted-foreground">
                   {new Date(item.createdAt).toLocaleString()}
@@ -84,6 +104,17 @@ export function RemediationQueue({ items }: { items: Remediation[] }) {
                     </pre>
                   </div>
                 </div>
+
+                {item.snResult != null ? (
+                  <div>
+                    <h3 className="mb-1 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                      ServiceNow result
+                    </h3>
+                    <pre className="max-h-52 overflow-auto rounded-sm border border-border bg-secondary p-2.5 font-mono text-[11px] leading-relaxed text-foreground">
+                      {JSON.stringify(item.snResult, null, 2)}
+                    </pre>
+                  </div>
+                ) : null}
 
                 <div className="flex justify-end gap-2">
                   {item.status === "queued" ? (
