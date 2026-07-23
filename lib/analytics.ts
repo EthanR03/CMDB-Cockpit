@@ -52,6 +52,21 @@ export async function getDashboardData() {
 
   const cisWithGaps = new Set(findings.map((f) => f.ciId)).size
 
+  // Deduplication story (beat 6 close): the agents' job is one CI per real
+  // asset. Redundant = duplicate records beyond one survivor per cluster.
+  const dupClusterRecords = clusters.reduce(
+    (sum, c) => sum + (Array.isArray(c.ciIds) ? c.ciIds.length : 0),
+    0
+  )
+  const redundantRecords = Math.max(0, dupClusterRecords - clusters.length)
+  const duplicateReduction = {
+    totalCis: total,
+    clusters: clusters.length,
+    redundantRecords,
+    uniqueCis: total - redundantRecords,
+    resolvedClusters: clusters.filter((c) => c.status === "approved").length,
+  }
+
   return {
     kpis: {
       totalCis: total,
@@ -76,6 +91,7 @@ export async function getDashboardData() {
       .sort((a, b) => b.count - a.count),
     recentRuns: runs.slice(0, 6),
     runCompleteness,
+    duplicateReduction,
   }
 }
 

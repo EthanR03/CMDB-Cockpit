@@ -69,7 +69,7 @@ function Kpi({
 }
 
 export function Dashboard({ data }: { data: DashboardData }) {
-  const { kpis } = data
+  const { kpis, duplicateReduction } = data
 
   const categoryData = data.findingsByCategory.map((d) => ({
     ...d,
@@ -107,6 +107,55 @@ export function Dashboard({ data }: { data: DashboardData }) {
         />
         <Kpi label="Agent runs" value={data.recentRuns.length} href="/audit" />
       </div>
+
+      {duplicateReduction.redundantRecords > 0 ? (
+        <Card className="rounded-sm border-primary/40 bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+              Deduplication — one CI per real asset
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4">
+            <div className="flex items-baseline gap-3">
+              <span className="text-3xl font-semibold tabular-nums text-muted-foreground">
+                {duplicateReduction.totalCis}
+              </span>
+              <span className="text-sm text-muted-foreground">records in</span>
+              <span className="text-xl text-chart-1" aria-hidden="true">→</span>
+              <span className="text-3xl font-semibold tabular-nums text-success">
+                {duplicateReduction.uniqueCis}
+              </span>
+              <span className="text-sm text-muted-foreground">unique CIs</span>
+            </div>
+            <div className="ml-auto flex gap-8 text-right">
+              <div>
+                <div className="text-2xl font-semibold tabular-nums text-foreground">
+                  {duplicateReduction.clusters}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                  dup clusters
+                </div>
+              </div>
+              <div>
+                <div className="text-2xl font-semibold tabular-nums text-foreground">
+                  {duplicateReduction.redundantRecords}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                  redundant records
+                </div>
+              </div>
+              <div>
+                <div className="text-2xl font-semibold tabular-nums text-success">
+                  {duplicateReduction.resolvedClusters}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                  resolved
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="rounded-sm border-border bg-card lg:col-span-2">
