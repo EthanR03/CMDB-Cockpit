@@ -1,36 +1,29 @@
 #!/usr/bin/env bash
 #
-# reset-demo.sh — restore the CMDB Cockpit demo to its pristine golden state
-# between rehearsals (and before the real thing).
+# reset-demo.sh — reset the CMDB Cockpit demo to its EMPTY starting state,
+# so you run the pipeline live during the demo.
 #
-#   1. Restores the local Postgres DB from the golden snapshot
-#      (clusters/rules back to pending, queue empty, merged CIs restored).
+#   1. Re-seeds the local DB: reloads the 113-CI staging bundle and clears all
+#      agent output (findings, clusters, rules, topologies, remediations,
+#      decisions, agent runs). Nothing shows until you click "Run agent pipeline".
 #   2. Deletes any identifiers you created during a rehearsal from the
 #      ServiceNow instance, so the "create a rule live" beat works again.
 #      (Keeps the Linux Server rule — beat 5's IRE match needs it.)
 #
 # Usage:  ./demo/reset-demo.sh
-# The dev server can stay running; Next.js reconnects automatically.
+# The dev server can stay running.
 #
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$HERE/.." && pwd)"
 DB="${DATABASE_URL:-postgresql://localhost:5432/cmdb_cockpit}"
-GOLDEN="$HERE/golden-demo-db.sql"
 
-if [[ ! -f "$GOLDEN" ]]; then
-  echo "✗ golden snapshot not found at $GOLDEN" >&2
-  exit 1
-fi
-
-echo "→ restoring local database from golden snapshot…"
-# drop any open connections (dev server) so the schema drop can't hang, then reload
-psql "$DB" -q -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
-psql "$DB" -q -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" >/dev/null
-psql "$DB" -q < "$GOLDEN" >/dev/null
-echo "  local DB restored to golden state."
+echo "→ re-seeding the local database to the empty starting state…"
+DATABASE_URL="$DB" node "$REPO/scripts/seed.mjs"
+echo "  staging bundle reloaded; all agent output cleared."
 
 echo "→ cleaning demo-created identifiers from the ServiceNow instance…"
 node "$HERE/clean-instance.mjs"
 
-echo "✓ demo reset complete — golden state restored, instance clean. Ready for the next run."
+echo "✓ demo reset — empty state ready. Click \"Run agent pipeline\" in the app to populate it live."
