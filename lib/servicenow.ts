@@ -12,6 +12,7 @@ import "server-only"
 export type ServiceNowErrorKind =
   | "auth"
   | "acl"
+  | "conflict"
   | "timeout"
   | "bad_payload"
   | "scope"
@@ -130,8 +131,14 @@ function classifyHttpError(status: number, path: string, detail: string): Servic
   const opts = { status, detail: detail.slice(0, MAX_DETAIL_CHARS) }
   if (status === 401)
     return new ServiceNowError("auth", "ServiceNow rejected the credentials (401) — check SERVICENOW_USER / SERVICENOW_PASSWORD", opts)
-  if (status === 403)
-    return new ServiceNowError("acl", `Service account lacks ACL for ${path} (403) — escalate to Intern C`, opts)
+  if (status === 403) {
+    // A 403 on a write is often NOT an ACL denial but a validation/uniqueness
+    // rejection — e.g. "Error during insert of cmdb_identifier" when an
+    // identifier already exists for the class. Don't mislabel it as permissions.
+    if (/error during insert|operation failed|already exists|duplicate/i.test(detail))
+      return new ServiceNowError("conflict", `ServiceNow rejected the write to ${path} (403) — likely a duplicate or validation conflict`, opts)
+    return new ServiceNowError("acl", `Service account lacks ACL for ${path} (403)`, opts)
+  }
   if (status === 400 || status === 404 || status === 413 || status === 422)
     return new ServiceNowError("bad_payload", `ServiceNow rejected the request to ${path} (${status})`, opts)
   return new ServiceNowError("network", `ServiceNow returned ${status} for ${path}`, opts)
@@ -230,17 +237,56 @@ export type IreCriteriaEntry = {
 }
 
 /**
- * Create a cmdb_identifier plus one cmdb_identifier_entry per criteria row.
- * Returns the sys_ids so the caller can store them on the proposal.
+ * Find an existing identifier for a CI class. ServiceNow allows ~one identifier
+ * per class (a second INSERT is rejected with a 403 "Error during insert"), and
+ * out-of-box identifiers are NOT team-prefixed — so this read intentionally looks
+ * past the team scope to see the global constraint the caller must respect.
+ */
+async function findIdentifierForClass(ciClass: string): Promise<SnRecord | null> {
+  const params = new URLSearchParams({
+    sysparm_query: `applies_to=${ciClass}`,
+    sysparm_limit: "1",
+    sysparm_fields: "sys_id,name,applies_to",
+    sysparm_exclude_reference_link: "true",
+  })
+  const data = await snFetch<{ result: SnRecord[] }>(
+    `/api/now/table/cmdb_identifier?${params}`,
+    { method: "GET" }
+  )
+  return data.result[0] ?? null
+}
+
+export type IdentificationRuleResult = {
+  status: "created" | "exists"
+  identifierSysId: string
+  identifierName: string | null
+  entrySysIds: string[]
+}
+
+/**
+ * Ensure a cmdb_identifier exists for the class. Checks first: if the class
+ * already has one (ours from a prior run, or an out-of-box rule), report it
+ * instead of blind-inserting a duplicate (which ServiceNow 403s). Otherwise
+ * create the identifier plus one cmdb_identifier_entry per criteria row.
  */
 export async function snCreateIdentificationRule(input: {
   ciClass: string
   ruleName: string
   criteria: IreCriteriaEntry[]
   rationale?: string | null
-}): Promise<{ identifierSysId: string; entrySysIds: string[] }> {
+}): Promise<IdentificationRuleResult> {
   if (!input.criteria.length) {
     throw new ServiceNowError("bad_payload", "Rule proposal has no criteria entries")
+  }
+
+  const existing = await findIdentifierForClass(input.ciClass)
+  if (existing) {
+    return {
+      status: "exists",
+      identifierSysId: existing.sys_id,
+      identifierName: typeof existing.name === "string" ? existing.name : null,
+      entrySysIds: [],
+    }
   }
 
   const identifier = await snInsert("cmdb_identifier", {
@@ -262,7 +308,12 @@ export async function snCreateIdentificationRule(input: {
     entrySysIds.push(created.sys_id)
   }
 
-  return { identifierSysId: identifier.sys_id, entrySysIds }
+  return {
+    status: "created",
+    identifierSysId: identifier.sys_id,
+    identifierName: typeof identifier.name === "string" ? identifier.name : input.ruleName,
+    entrySysIds,
+  }
 }
 
 /** Insert one CI row into the scoped-app staging table. */

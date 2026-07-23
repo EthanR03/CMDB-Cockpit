@@ -64,14 +64,18 @@ function SnSyncStrip({
   rule: IreRuleProposal
   snInstanceUrl: string | null
 }) {
-  if (rule.snSyncStatus === "created") {
+  if (rule.snSyncStatus === "created" || rule.snSyncStatus === "exists") {
     const sysId = rule.snIdentifierSysId
     const href =
       snInstanceUrl && sysId ? `${snInstanceUrl}/cmdb_identifier.do?sys_id=${sysId}` : null
+    const label =
+      rule.snSyncStatus === "exists"
+        ? "Already in ServiceNow ✓ (existing identifier)"
+        : "Created in ServiceNow ✓"
     return (
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-success/10 px-4 py-2">
         <Check className="size-3.5 text-success" aria-hidden="true" />
-        <span className="text-xs text-success">Created in ServiceNow ✓</span>
+        <span className="text-xs text-success">{label}</span>
         {sysId ? (
           href ? (
             <a

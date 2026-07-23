@@ -122,7 +122,7 @@ export async function reviewIreRule(
     // Failure never unwinds the local approval — it is recorded on the row.
     if (isServiceNowEnabled()) {
       try {
-        const created = await snCreateIdentificationRule({
+        const result = await snCreateIdentificationRule({
           ciClass: rule.ciClass,
           ruleName: rule.ruleName,
           criteria: rule.criteria as IreCriteriaEntry[],
@@ -131,10 +131,12 @@ export async function reviewIreRule(
         await db
           .update(ireRuleProposal)
           .set({
-            snSyncStatus: "created",
+            // "exists" = an identifier for this class was already present
+            // (ours from a prior run, or an out-of-box rule) — no duplicate created
+            snSyncStatus: result.status,
             snSyncError: null,
-            snIdentifierSysId: created.identifierSysId,
-            snEntrySysIds: created.entrySysIds,
+            snIdentifierSysId: result.identifierSysId,
+            snEntrySysIds: result.entrySysIds,
           })
           .where(eq(ireRuleProposal.id, ruleId))
       } catch (err) {
